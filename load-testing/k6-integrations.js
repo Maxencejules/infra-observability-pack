@@ -43,9 +43,10 @@ export default function () {
 
   group("Publish Event", () => {
     const payload = JSON.stringify({
-      event_type: "load_test.ping",
+      event_type: "request_submitted",
       payload: {
-        message: "k6 load test",
+        request_id: "00000000-0000-0000-0000-000000000000",
+        title: "k6 load test",
         timestamp: new Date().toISOString(),
       },
     });
@@ -71,13 +72,4 @@ export default function () {
   sleep(1);
 }
 
-export function handleSummary(data) {
-  return {
-    stdout: textSummary(data, { indent: "  ", enableColors: true }),
-    "results/integrations-hub-results.json": JSON.stringify(data, null, 2),
-  };
-}
-
-function textSummary(data, opts) {
-  return "";
-}
+// Default k6 summary is used (no handleSummary override).

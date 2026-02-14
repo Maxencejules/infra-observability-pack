@@ -82,14 +82,4 @@ export default function () {
   sleep(1);
 }
 
-export function handleSummary(data) {
-  return {
-    stdout: textSummary(data, { indent: "  ", enableColors: true }),
-    "results/procurement-platform-results.json": JSON.stringify(data, null, 2),
-  };
-}
-
-function textSummary(data, opts) {
-  // k6 built-in text summary
-  return "";
-}
+// Default k6 summary is used (no handleSummary override).
