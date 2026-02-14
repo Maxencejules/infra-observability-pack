@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: portfolio
+  labels:
+    app: grafana
+data:
+  portfolio-overview.json: |
+    __DASHBOARD_JSON_PLACEHOLDER__
+---
+# NOTE: The actual dashboard JSON is in dashboard.json.
+# The deploy-all.sh script injects it into this ConfigMap at deploy time.
+# To update manually: copy the contents of dashboard.json into the data field above.

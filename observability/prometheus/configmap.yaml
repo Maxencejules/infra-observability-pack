@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: portfolio
+  labels:
+    app: prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: "prometheus"
+        static_configs:
+          - targets: ["localhost:9090"]
+
+      - job_name: "procurement-platform"
+        metrics_path: /metrics
+        scrape_interval: 10s
+        static_configs:
+          - targets: ["procurement-platform:8000"]
+            labels:
+              app: procurement-platform
+              env: local
+
+      - job_name: "integrations-hub"
+        metrics_path: /metrics
+        scrape_interval: 10s
+        static_configs:
+          - targets: ["integrations-hub:8000"]
+            labels:
+              app: integrations-hub
+              env: local

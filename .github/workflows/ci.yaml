@@ -1,0 +1,59 @@
+name: Infra CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-yaml:
+    name: Lint YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yamllint
+        run: pip install yamllint
+      - name: Lint YAML files
+        run: |
+          find . -name "*.yaml" -o -name "*.yml" \
+            | grep -v .git \
+            | xargs yamllint -d "{extends: relaxed, rules: {line-length: {max: 150}}}"
+
+  validate-manifests:
+    name: Validate K8s Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.29.0"
+      - name: Validate all manifests
+        run: |
+          for file in $(find kubernetes observability -name "*.yaml" | sort); do
+            echo "Validating: $file"
+            # Skip the dashboard-configmap placeholder
+            if echo "$file" | grep -q "dashboard-configmap"; then
+              echo "  SKIP (generated at deploy time)"
+              continue
+            fi
+            kubectl apply --dry-run=client -f "$file" 2>&1 || exit 1
+          done
+
+  validate-json:
+    name: Validate Dashboard JSON
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Grafana dashboard JSON
+        run: python3 -c "import json; json.load(open('observability/grafana/dashboard.json'))"
+
+  shellcheck:
+    name: Shellcheck Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        run: |
+          find scripts ci -name "*.sh" | xargs shellcheck --severity=warning

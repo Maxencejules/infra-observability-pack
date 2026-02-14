@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: procurement-platform
+  namespace: portfolio
+  labels:
+    app: procurement-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: procurement-platform
+  template:
+    metadata:
+      labels:
+        app: procurement-platform
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+      containers:
+        - name: procurement-platform
+          image: procurement-platform:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: PROCUREMENT_DATABASE_URL
+            - name: DATABASE_URL_SYNC
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: PROCUREMENT_DATABASE_URL_SYNC
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: procurement-platform-secrets
+                  key: SECRET_KEY
+          envFrom:
+            - configMapRef:
+                name: procurement-platform-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

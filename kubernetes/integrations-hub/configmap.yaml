@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: integrations-hub-config
+  namespace: portfolio
+  labels:
+    app: integrations-hub
+data:
+  IH_LOG_LEVEL: "INFO"
+  IH_SLACK_DEFAULT_CHANNEL: "#integrations"
