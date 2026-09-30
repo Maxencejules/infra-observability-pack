@@ -1,35 +1,21 @@
-# Tasks
+# Scope and follow-up
 
-## 1. Kubernetes Manifests
-- [x] Namespace definition
-- [x] PostgreSQL StatefulSet (shared instance, separate databases)
-- [x] procurement-platform Deployment + Service + ConfigMap + Secret
-- [x] integrations-hub Deployment + Service + ConfigMap + Secret
-- [x] Port-forward instructions in README
+Completed in this upgrade:
 
-## 2. Observability
-- [x] Prometheus ConfigMap with scrape targets
-- [x] Prometheus Deployment + Service
-- [x] Grafana Deployment + Service with datasource provisioning
-- [x] Grafana dashboard JSON (request rate, error rate, latency, queue depth)
-- [x] RUNBOOK.md with common debugging procedures
+- Canonical content-hashed monitoring configuration and an explicit Grafana datasource UID.
+- Numerically checked rate/reset/idle/missing/histogram rules; no counter presented as queue depth.
+- Semantic k6 checks with one error-rate sample for every request and retained raw points.
+- Synthetic fixtures with bounded route labels and no cloud calls.
+- Dedicated kind contexts/private kubeconfigs, source-preserving optional app builds and owned-process cleanup.
+- Offline adversarial tests plus native Prometheus/k6 collection/down/recovery evidence.
+- A full disposable kind/Grafana API proof in Ubuntu CI, triggered on the actual master branch.
 
-## 3. Load Testing
-- [x] k6 script for procurement-platform endpoints
-- [x] k6 script for integrations-hub endpoints
-- [x] Runner script
-- [x] PERF_REPORT.md template with example results
+Remaining work requires a separate measured scope:
 
-## 4. CI
-- [x] YAML lint script
-- [x] Manifest validation script
-- [x] Smoke test script
-- [x] GitHub Actions workflow
+- Exercise a pinned real procurement/integrations revision and dataset, including authentication, migrations and webhook outcomes.
+- Add a real queue gauge if queue depth is needed; define retry versus unique-delivery semantics before choosing alerts.
+- Measure representative workloads/resources before proposing production sizing or capacity.
+- Establish backups, persistence, TLS/identity, secrets, alert routing and failure recovery for any production deployment.
+- Perform visual Grafana review in a running cluster; current proof checks configuration and APIs.
 
-## 5. Documentation
-- [x] README.md with full setup instructions
-- [x] RUNBOOK.md for incident response
-- [x] PERF_REPORT.md template
-
-## 6. App Enhancement
-- [x] Add Prometheus metrics to procurement_platform backend
+CI configuration does not itself prove these follow-ups or a successful remote run.

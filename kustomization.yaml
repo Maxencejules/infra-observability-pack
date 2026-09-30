@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - kubernetes/namespace.yaml
+  - kubernetes/postgres/configmap.yaml
+  - kubernetes/postgres/secret.yaml
+  - kubernetes/postgres/service.yaml
+  - kubernetes/postgres/statefulset.yaml
+  - kubernetes/procurement-platform/configmap.yaml
+  - kubernetes/procurement-platform/secret.yaml
+  - kubernetes/procurement-platform/service.yaml
+  - kubernetes/procurement-platform/deployment.yaml
+  - kubernetes/integrations-hub/configmap.yaml
+  - kubernetes/integrations-hub/secret.yaml
+  - kubernetes/integrations-hub/service.yaml
+  - kubernetes/integrations-hub/deployment.yaml
+  - observability/prometheus/service.yaml
+  - observability/prometheus/deployment.yaml
+  - observability/grafana/datasource.yaml
+  - observability/grafana/dashboard-provider.yaml
+  - observability/grafana/service.yaml
+  - observability/grafana/deployment.yaml
+configMapGenerator:
+  - name: prometheus-config
+    namespace: portfolio
+    files:
+      - prometheus.yml=observability/prometheus/prometheus.yml
+      - rules.yml=observability/prometheus/rules.yml
+  - name: grafana-dashboards
+    namespace: portfolio
+    files:
+      - portfolio-overview.json=observability/grafana/dashboard.json

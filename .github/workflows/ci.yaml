@@ -1,59 +1,70 @@
-name: Infra CI
+name: Observability proof
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
+
+permissions:
+  contents: read
 
 jobs:
-  lint-yaml:
-    name: Lint YAML
+  checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - name: Install yamllint
-        run: pip install yamllint
-      - name: Lint YAML files
-        run: |
-          find . -name "*.yaml" -o -name "*.yml" \
-            | grep -v .git \
-            | xargs yamllint -d "{extends: relaxed, rules: {line-length: {max: 150}}}"
-
-  validate-manifests:
-    name: Validate K8s Manifests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          version: "v1.29.0"
-      - name: Validate all manifests
-        run: |
-          for file in $(find kubernetes observability -name "*.yaml" | sort); do
-            echo "Validating: $file"
-            # Skip the dashboard-configmap placeholder
-            if echo "$file" | grep -q "dashboard-configmap"; then
-              echo "  SKIP (generated at deploy time)"
-              continue
-            fi
-            kubectl apply --dry-run=client -f "$file" 2>&1 || exit 1
-          done
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: python -m pip install -r requirements-checks.txt
+      - run: bash ci/install-tools.sh
+      - run: bash ci/lint-yaml.sh
+      - run: bash ci/validate-manifests.sh
+      - run: python -m unittest discover -s tests -v
+      - run: node --test tests/k6-contracts.mjs
+      - run: shellcheck --severity=warning scripts/*.sh ci/*.sh load-testing/*.sh
+      - run: promtool check config --syntax-only observability/prometheus/prometheus.yml
+      - run: promtool check rules observability/prometheus/rules.yml
+      - run: promtool test rules observability/prometheus/rules.test.yml
+      - run: python ci/check_k6.py --k6 k6
+      - run: python ci/check_prometheus.py --prometheus prometheus --k6 k6
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: native-monitoring-proof
+          path: |
+            .local/rendered.yaml
+            .local/k6-proof/*.json*
+            .local/k6-proof/*.log
+            .local/prometheus-proof/*.json*
+            .local/prometheus-proof/*.yml
+            .local/prometheus-proof/*.log
+          include-hidden-files: true
 
-  validate-json:
-    name: Validate Dashboard JSON
+  kind:
+    needs: checks
     runs-on: ubuntu-latest
+    timeout-minutes: 18
     steps:
-      - uses: actions/checkout@v4
-      - name: Validate Grafana dashboard JSON
-        run: python3 -c "import json; json.load(open('observability/grafana/dashboard.json'))"
-
-  shellcheck:
-    name: Shellcheck Scripts
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run shellcheck
-        run: |
-          find scripts ci -name "*.sh" | xargs shellcheck --severity=warning
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-checks.txt
+      - run: bash ci/install-tools.sh
+      - run: bash ci/kind-proof.sh
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: kind-monitoring-proof
+          path: |
+            .local/kind-proof/
+            .local/*-forward.log
+            .local/images.json
+          include-hidden-files: true

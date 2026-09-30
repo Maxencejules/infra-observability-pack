@@ -1,220 +1,53 @@
-# Runbook - Portfolio Infrastructure
+# Local monitoring runbook
 
-## Service Overview
+Use the project kubeconfig/context explicitly. These commands operate on the disposable local lab:
 
-| Service | Port | Health | Metrics |
-|---------|------|--------|---------|
-| procurement-platform | 8001 (forwarded) | `/health` | `/metrics` |
-| integrations-hub | 8002 (forwarded) | `/health` | `/metrics` |
-| PostgreSQL | 5432 | `pg_isready` | - |
-| Prometheus | 9090 | `/-/ready` | - |
-| Grafana | 3000 | `/api/health` | - |
-
----
-
-## Common Issues
-
-### 1. Pod stuck in CrashLoopBackOff
-
-**Symptoms:** `kubectl -n portfolio get pods` shows `CrashLoopBackOff` status.
-
-**Diagnosis:**
-```bash
-# Check pod logs
-kubectl -n portfolio logs <pod-name> --previous
-
-# Check events
-kubectl -n portfolio describe pod <pod-name>
+```sh
+kubectl --kubeconfig .local/kubeconfig --context kind-portfolio-observability -n portfolio get pods
+kubectl --kubeconfig .local/kubeconfig --context kind-portfolio-observability -n portfolio get events --sort-by=.lastTimestamp
 ```
 
-**Common causes:**
-- **Database not ready:** The init container `wait-for-postgres` should handle this. If postgres itself is crashing, check its logs first.
-- **Missing env var:** Compare the deployment's env section with what the app expects. Check `kubectl -n portfolio get secret <name> -o yaml`.
-- **OOM killed:** Check `kubectl -n portfolio describe pod <pod-name>` for `OOMKilled`. Increase memory limits in the deployment manifest.
+If you chose another `CLUSTER_NAME`/`KUBECONFIG_PATH`, substitute both deliberately. The automatic proof uses its own `kind-portfolio-observability-proof` context and `.local/kind-proof/kubeconfig`.
 
-**Resolution:**
-```bash
-# If postgres is the issue
-kubectl -n portfolio rollout restart statefulset/postgres
+## Missing metrics
 
-# If an app is the issue after fixing config
-kubectl -n portfolio rollout restart deployment/<app-name>
+1. Check the API health response separately from Prometheus `up`. `up=1` describes a successful scrape, not database or business health.
+2. In Prometheus Targets, inspect the target URL, last scrape and last error. A DNS/connection/parse failure makes `up=0`; absent job configuration produces no `up` series.
+3. Read the local metrics endpoint. Verify the exact metric family, units and labels against `observability/prometheus/rules.yml`. An app missing the HTTP histogram cannot supply an HTTP p95.
+4. Generate smoke traffic and wait at least two scrapes plus a recording-rule evaluation. An idle counter can have zero rate; a histogram with no observations may have an undefined quantile.
+5. Check Prometheus logs and `promtool check/test rules` before changing a dashboard query.
+
+```sh
+kubectl --kubeconfig .local/kubeconfig --context kind-portfolio-observability -n portfolio logs deployment/prometheus
+curl --fail http://127.0.0.1:9090/api/v1/targets
 ```
 
----
+The one-minute counter window and five-minute histogram window can retain past activity after a target goes down. Use `up` alongside rate panels; an old rate is not proof of current health. Counter resets are handled by `rate` before aggregation. Histogram quantiles are interpolated estimates, not exact k6 client latency percentiles.
 
-### 2. Database connection refused
+## Grafana shows no data
 
-**Symptoms:** App logs show `Connection refused` or `could not connect to server`.
+Run `bash ci/smoke-test.sh` with forwarding active. It checks the provisioned datasource UID, dashboard panels and Grafana's datasource proxy, so a reachable Grafana login page alone cannot pass. The canonical UID is `portfolio-prometheus`; queries reference tested recording rules. A blank worker panel is expected in synthetic mode.
 
-**Diagnosis:**
-```bash
-# Check postgres pod
-kubectl -n portfolio get pods -l app=postgres
+Monitoring ConfigMap changes are content-hashed by Kustomize and cause monitoring deployments to roll. The API smoke uses Grafana 13's dashboard resource API; the documented legacy datasource/proxy endpoints remain supported in that pinned version. This repository has not visually certified the dashboard.
 
-# Check postgres logs
-kubectl -n portfolio logs postgres-0
+## k6 failure
 
-# Test connectivity from app pod
-kubectl -n portfolio exec -it deployment/procurement-platform -- \
-  sh -c "nc -z postgres 5432 && echo OK || echo FAIL"
+Inspect `.local/load-test/procurement.log`, `integrations.log` and their raw JSON points. Separate transport failures from `request_errors`: HTTP-200 GraphQL errors and malformed success receipts fail semantic checks even when `http_req_failed` is zero.
+
+Smoke performs three public procurement requests, four when `PROCUREMENT_TOKEN` is supplied, and four integrations requests per iteration. Only exact loopback origins are allowed. A real integrations application may deliver webhooks after the POST, so use disposable local data/configuration. Do not include tokens in shared logs or reports.
+
+## Pod failure
+
+```sh
+kubectl --kubeconfig .local/kubeconfig --context kind-portfolio-observability -n portfolio describe pod POD_NAME
+kubectl --kubeconfig .local/kubeconfig --context kind-portfolio-observability -n portfolio logs deployment/grafana
+kubectl --kubeconfig .local/kubeconfig --context kind-portfolio-observability -n portfolio logs statefulset/postgres
 ```
 
-**Common causes:**
-- PostgreSQL pod not running or not ready.
-- Init script failed (database not created). Check logs for the init container.
-- Wrong connection string in secret.
+Check image loading, readiness/liveness failures, resource limits and PostgreSQL initialization. Fixture apps wait for PostgreSQL's port but do not use SQL; fixture success does not validate schemas, migrations or query health. Avoid dumping Secret objects into diagnostic artifacts. If optional app configuration or secrets change, explicitly roll those application deployments after review.
 
-**Resolution:**
-```bash
-# Recreate databases manually if init failed
-kubectl -n portfolio exec -it postgres-0 -- psql -U postgres -c "CREATE DATABASE procurement;"
-kubectl -n portfolio exec -it postgres-0 -- psql -U postgres -c "CREATE DATABASE integrations_hub;"
+## Recovery and data boundaries
 
-# Restart apps
-kubectl -n portfolio rollout restart deployment/procurement-platform
-kubectl -n portfolio rollout restart deployment/integrations-hub
-```
+Restarting a local monitoring pod can discard Prometheus/Grafana local state. PostgreSQL's local PVC survives a pod restart, but cluster deletion removes the entire lab's data. No backup/restore workflow is implemented or validated.
 
----
-
-### 3. Prometheus not scraping targets
-
-**Symptoms:** Grafana dashboards show "No data". Prometheus targets page shows targets as DOWN.
-
-**Diagnosis:**
-```bash
-# Check Prometheus targets
-curl http://localhost:9090/api/v1/targets | python3 -m json.tool
-
-# Check if app metrics endpoint works
-curl http://localhost:8001/metrics
-curl http://localhost:8002/metrics
-```
-
-**Common causes:**
-- App pod not ready (readiness probe failing).
-- Wrong service name or port in `prometheus.yml` ConfigMap.
-- Metrics endpoint not mounted in the app.
-
-**Resolution:**
-```bash
-# Edit prometheus config
-kubectl -n portfolio edit configmap prometheus-config
-
-# Reload Prometheus (lifecycle API enabled)
-curl -X POST http://localhost:9090/-/reload
-```
-
----
-
-### 4. Grafana shows "No data" on panels
-
-**Symptoms:** Dashboard loads but panels show "No data".
-
-**Diagnosis:**
-1. Open Grafana (http://localhost:3000) > Explore.
-2. Select the Prometheus datasource.
-3. Try a simple query: `up`.
-4. If `up` returns data, the issue is with the specific metric name.
-
-**Common causes:**
-- Prometheus datasource URL wrong. Check Settings > Data sources.
-- App hasn't received traffic yet (counters start at 0, rates show nothing).
-- Dashboard uses metric names that don't match what the app exports.
-
-**Resolution:**
-```bash
-# Generate some traffic
-curl http://localhost:8001/health
-curl http://localhost:8002/health
-
-# Check what metrics exist
-curl -s http://localhost:8001/metrics | head -30
-curl -s http://localhost:8002/metrics | head -30
-```
-
----
-
-### 5. High latency / slow responses
-
-**Symptoms:** p95 latency exceeds SLO threshold on Grafana dashboard.
-
-**Diagnosis:**
-```bash
-# Check pod resource usage
-kubectl -n portfolio top pods
-
-# Check if postgres is the bottleneck
-kubectl -n portfolio exec -it postgres-0 -- \
-  psql -U postgres -c "SELECT * FROM pg_stat_activity WHERE state != 'idle';"
-
-# Check app logs for slow queries
-kubectl -n portfolio logs deployment/procurement-platform | grep -i slow
-```
-
-**Common causes:**
-- Resource limits too low for load.
-- Database queries not optimized (missing indexes).
-- Connection pool exhaustion.
-
-**Resolution:**
-- Increase resource limits in deployment manifests.
-- Add database indexes.
-- Tune connection pool settings via environment variables.
-
----
-
-### 6. Port forward disconnects
-
-**Symptoms:** `port-forward.sh` exits or connections drop.
-
-**Resolution:**
-```bash
-# Just re-run it
-./scripts/port-forward.sh
-
-# Or forward a single service
-kubectl -n portfolio port-forward svc/grafana 3000:3000
-```
-
----
-
-## Alerting Thresholds (Reference)
-
-These are the thresholds used in the Grafana dashboard. They're informational for a local setup but would map to alerts in production.
-
-| Metric | Warning | Critical |
-|--------|---------|----------|
-| Error rate (5xx/s) | > 0.1 | > 1.0 |
-| p95 latency | > 500ms | > 1000ms |
-| Webhook queue depth | > 50 | > 200 |
-| Pod restarts (5m) | > 2 | > 5 |
-
----
-
-## Useful Commands Cheat Sheet
-
-```bash
-# All pods
-kubectl -n portfolio get pods -o wide
-
-# Logs (follow)
-kubectl -n portfolio logs -f deployment/procurement-platform
-
-# Shell into pod
-kubectl -n portfolio exec -it deployment/integrations-hub -- /bin/sh
-
-# Restart a deployment
-kubectl -n portfolio rollout restart deployment/<name>
-
-# Scale up
-kubectl -n portfolio scale deployment/<name> --replicas=3
-
-# Check resource usage
-kubectl -n portfolio top pods
-
-# Delete and redeploy everything
-kubectl delete namespace portfolio
-./scripts/deploy-all.sh
-```
+Stop only this script's forwards with Ctrl+C. Use `bash scripts/teardown.sh` to delete the named lab; it asks you to type its name. The automatic proof refuses an existing cluster and only tears down the cluster it successfully created. Never substitute a production kubeconfig into this lab.

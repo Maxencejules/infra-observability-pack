@@ -1,0 +1,106 @@
+{
+  "mode": "synthetic-native-wiring",
+  "started_at": "2026-09-30T05:29:09.642705+00:00",
+  "platform": "Windows-11-10.0.26100-SP0",
+  "python_version": "3.12.10",
+  "configuration_note": "Loopback targets and two-second scrape interval; canonical rule group uses ten seconds",
+  "source_files_sha256": {
+    "demo/service.py": "a863867c6ab27953030e63c4898f7db05e2a35238eb5d8a4784b45d02cb26cc8",
+    "observability/prometheus/rules.yml": "bdb92fa2f9f2b4096404b457190f4bb65c4abd821e090e4fa7123f222862cdcf",
+    "load-testing/contracts.mjs": "d02c1124e99af367004217ae1ab013849d64eca266d930931114468d8fda7700",
+    "load-testing/k6-procurement.js": "5a70d8daa2c272fee0edd38bec850a53e1598d7778ba2e774fd1add906bbc41c",
+    "load-testing/k6-integrations.js": "759e19d192ed6dc8f5d3e640f3fba64755ef2fe8f5d9480f3ac9d1cf98a61ad2"
+  },
+  "prometheus_version": "prometheus, version 3.13.3 (branch: HEAD, revision: b273ae3adeb64ad630d65ef7f16440df95658410)\n  build user:       root@a07a910c8743\n  build date:       20260907-11:42:56\n  go version:       go1.26.8\n  platform:         windows/amd64\n  tags:             builtinassets",
+  "k6_version": "k6.exe v2.3.0 (commit/e088784614, go1.26.8, windows/amd64)",
+  "checks": [
+    "real k6 traffic scraped and recorded; absent worker metrics remain absent",
+    "one stopped target up=0 while the other stayed up=1",
+    "restarted target up=1"
+  ],
+  "k6_requests": {
+    "procurement-platform": 30,
+    "integrations-hub": 40
+  },
+  "measurements": {
+    "portfolio:http_requests:rate1m": [
+      {
+        "metric": {
+          "__name__": "portfolio:http_requests:rate1m",
+          "job": "integrations-hub"
+        },
+        "value": [
+          1790746168.351,
+          "0.3029527777777778"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "portfolio:http_requests:rate1m",
+          "job": "procurement-platform"
+        },
+        "value": [
+          1790746168.351,
+          "0.19263333333333332"
+        ]
+      }
+    ],
+    "portfolio:http_5xx:rate1m": [
+      {
+        "metric": {
+          "__name__": "portfolio:http_5xx:rate1m",
+          "job": "integrations-hub"
+        },
+        "value": [
+          1790746168.353,
+          "0"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "portfolio:http_5xx:rate1m",
+          "job": "procurement-platform"
+        },
+        "value": [
+          1790746168.353,
+          "0"
+        ]
+      }
+    ],
+    "portfolio:http_latency:p95_5m": [
+      {
+        "metric": {
+          "__name__": "portfolio:http_latency:p95_5m",
+          "job": "procurement-platform"
+        },
+        "value": [
+          1790746168.357,
+          "0.004749999999999999"
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "portfolio:http_latency:p95_5m",
+          "job": "integrations-hub"
+        },
+        "value": [
+          1790746168.357,
+          "0.00475"
+        ]
+      }
+    ],
+    "portfolio:events_published:rate1m": [
+      {
+        "metric": {
+          "__name__": "portfolio:events_published:rate1m",
+          "event_type": "request_submitted"
+        },
+        "value": [
+          1790746168.363,
+          "0.17888333333333337"
+        ]
+      }
+    ]
+  },
+  "finished_at": "2026-09-30T05:29:31.790280+00:00"
+}

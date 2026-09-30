@@ -1,75 +1,33 @@
-import http from "k6/http";
-import { check, sleep, group } from "k6";
-import { Rate, Trend } from "k6/metrics";
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Counter, Rate } from 'k6/metrics';
+import { baseUrl, jsonBody, hasMetrics, profileOptions } from './contracts.mjs';
 
-// Custom metrics
-const errorRate = new Rate("errors");
-const healthLatency = new Trend("health_latency", true);
-const apiLatency = new Trend("api_latency", true);
+const failures = new Rate('request_errors');
+const evaluated = new Counter('evaluated_requests');
+const BASE_URL = baseUrl(__ENV.BASE_URL || 'http://127.0.0.1:8002');
+export const options = profileOptions(__ENV);
 
-// Configuration: override with -e BASE_URL=http://...
-const BASE_URL = __ENV.BASE_URL || "http://localhost:8002";
-
-export const options = {
-  stages: [
-    { duration: "30s", target: 5 },   // ramp up
-    { duration: "1m", target: 10 },   // steady state
-    { duration: "30s", target: 20 },  // peak
-    { duration: "30s", target: 0 },   // ramp down
-  ],
-  thresholds: {
-    http_req_duration: ["p(95)<500", "p(99)<1000"],
-    errors: ["rate<0.05"],
-  },
-};
-
-export default function () {
-  group("Health Check", () => {
-    const res = http.get(`${BASE_URL}/health`);
-    healthLatency.add(res.timings.duration);
-    check(res, {
-      "health status 200": (r) => r.status === 200,
-      "health body ok": (r) => r.json().status === "ok",
-    }) || errorRate.add(1);
-  });
-
-  group("List Subscriptions", () => {
-    const res = http.get(`${BASE_URL}/api/v1/subscriptions`);
-    apiLatency.add(res.timings.duration);
-    check(res, {
-      "subscriptions status 200": (r) => r.status === 200,
-    }) || errorRate.add(1);
-  });
-
-  group("Publish Event", () => {
-    const payload = JSON.stringify({
-      event_type: "request_submitted",
-      payload: {
-        request_id: "00000000-0000-0000-0000-000000000000",
-        title: "k6 load test",
-        timestamp: new Date().toISOString(),
-      },
-    });
-    const params = {
-      headers: { "Content-Type": "application/json" },
-    };
-    const res = http.post(`${BASE_URL}/api/v1/events`, payload, params);
-    apiLatency.add(res.timings.duration);
-    check(res, {
-      "publish event status 2xx": (r) => r.status >= 200 && r.status < 300,
-    }) || errorRate.add(1);
-  });
-
-  group("Metrics Endpoint", () => {
-    const res = http.get(`${BASE_URL}/metrics`);
-    check(res, {
-      "metrics status 200": (r) => r.status === 200,
-      "metrics has prometheus data": (r) =>
-        r.body.includes("http_requests_total"),
-    }) || errorRate.add(1);
-  });
-
-  sleep(1);
+function observe(response, name, valid) {
+  const passed = check(response, { [name]: () => Boolean(valid) });
+  failures.add(!passed);
+  evaluated.add(1);
 }
 
-// Default k6 summary is used (no handleSummary override).
+export default function () {
+  let response = http.get(`${BASE_URL}/health`, { timeout: '5s', tags: { name: 'health' } });
+  observe(response, 'health JSON/status', response.status === 200 && jsonBody(response)?.status === 'ok');
+  response = http.get(`${BASE_URL}/api/v1/subscriptions`, { timeout: '5s', tags: { name: 'subscriptions' } });
+  observe(response, 'subscriptions array/status', response.status === 200 && Array.isArray(jsonBody(response)));
+  response = http.post(`${BASE_URL}/api/v1/events`, JSON.stringify({ event_type: 'request_submitted', payload: { title: 'local k6 smoke fixture' } }),
+    { timeout: '5s', headers: { 'Content-Type': 'application/json' }, tags: { name: 'publish-event' } });
+  const event = jsonBody(response);
+  observe(response, 'event accepted with valid receipt', response.status === 201 &&
+    /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(event?.id || '') &&
+    event.event_type === 'request_submitted' && typeof event.payload === 'string' && Number.isFinite(Date.parse(event.created_at)));
+  response = http.get(`${BASE_URL}/metrics`, { timeout: '5s', tags: { name: 'metrics' } });
+  // Integrations exports accepted-event counters; its historical HTTP counter
+  // is not populated and it has no HTTP duration histogram.
+  observe(response, 'event counter exposition', response.status === 200 && hasMetrics(response.body, 'events_published_total'));
+  if (__ENV.PROFILE === 'load') sleep(1);
+}

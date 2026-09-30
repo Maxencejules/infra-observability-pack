@@ -38,6 +38,8 @@ spec:
             - containerPort: 8000
               name: http
           env:
+            - name: PORTFOLIO_SERVICE
+              value: integrations-hub
             - name: IH_DATABASE_URL
               valueFrom:
                 secretKeyRef:
