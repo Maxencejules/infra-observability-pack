@@ -64,7 +64,10 @@ jobs:
         with:
           name: kind-monitoring-proof
           path: |
-            .local/kind-proof/
+            .local/kind-proof/*.json
+            .local/kind-proof/*.log
+            .local/kind-proof/*.txt
+            .local/kind-proof/k6/
             .local/*-forward.log
             .local/images.json
           include-hidden-files: true
