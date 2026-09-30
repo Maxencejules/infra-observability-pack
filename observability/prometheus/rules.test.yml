@@ -1,0 +1,123 @@
+fuzzy_compare: true
+rule_files:
+  - rules.yml
+evaluation_interval: 10s
+tests:
+  - name: aggregate replicas without merging jobs or units
+    interval: 10s
+    input_series:
+      - series: 'http_requests_total{job="procurement-platform",instance="a",status_code="200"}'
+        values: '0+10x6'
+      - series: 'http_requests_total{job="procurement-platform",instance="b",status_code="200"}'
+        values: '0+20x6'
+      - series: 'http_requests_total{job="procurement-platform",instance="a",status_code="500"}'
+        values: '0+1x6'
+      - series: 'http_requests_total{job="integrations-hub",status_code="200"}'
+        values: '0+5x6'
+      - series: 'http_request_duration_seconds_bucket{job="procurement-platform",le="0.1"}'
+        values: '0+5x6'
+      - series: 'http_request_duration_seconds_bucket{job="procurement-platform",le="0.5"}'
+        values: '0+9x6'
+      - series: 'http_request_duration_seconds_bucket{job="procurement-platform",le="1"}'
+        values: '0+10x6'
+      - series: 'http_request_duration_seconds_bucket{job="procurement-platform",le="+Inf"}'
+        values: '0+10x6'
+      - series: 'webhook_deliveries_total{job="integrations-hub",status="failed"}'
+        values: '0+2x6'
+      - series: 'events_published_total{job="integrations-hub",event_type="request_submitted"}'
+        values: '0+7x6'
+      - series: 'webhook_delivery_duration_seconds_bucket{job="integrations-hub",le="0.1"}'
+        values: '0+5x6'
+      - series: 'webhook_delivery_duration_seconds_bucket{job="integrations-hub",le="1"}'
+        values: '0+10x6'
+      - series: 'webhook_delivery_duration_seconds_bucket{job="integrations-hub",le="+Inf"}'
+        values: '0+10x6'
+    promql_expr_test:
+      - expr: portfolio:http_requests:rate1m
+        eval_time: 1m
+        exp_samples:
+          - labels: 'portfolio:http_requests:rate1m{job="procurement-platform"}'
+            value: 3.1
+          - labels: 'portfolio:http_requests:rate1m{job="integrations-hub"}'
+            value: 0.5
+      - expr: portfolio:http_5xx:rate1m
+        eval_time: 1m
+        exp_samples:
+          - labels: 'portfolio:http_5xx:rate1m{job="procurement-platform"}'
+            value: 0.1
+          - labels: 'portfolio:http_5xx:rate1m{job="integrations-hub"}'
+            value: 0
+      - expr: portfolio:http_latency:p50_5m
+        eval_time: 1m
+        exp_samples:
+          - labels: 'portfolio:http_latency:p50_5m{job="procurement-platform"}'
+            value: 0.1
+      # Analytic interpolation: .5 + ((.95*10 - 9)/(10 - 9))*(1 - .5) = .75.
+      # Allow 1e-12 absolute roundoff; fuzzy_compare alone allows only one ULP.
+      - expr: 'abs(portfolio:http_latency:p95_5m - 0.75) < bool 1e-12'
+        eval_time: 1m
+        exp_samples:
+          - labels: '{job="procurement-platform"}'
+            value: 1
+      - expr: portfolio:http_latency:p99_5m
+        eval_time: 1m
+        exp_samples:
+          - labels: 'portfolio:http_latency:p99_5m{job="procurement-platform"}'
+            value: 0.95
+      - expr: portfolio:webhook_attempts:rate1m
+        eval_time: 1m
+        exp_samples:
+          - labels: 'portfolio:webhook_attempts:rate1m{status="failed"}'
+            value: 0.2
+      - expr: portfolio:events_published:rate1m
+        eval_time: 1m
+        exp_samples:
+          - labels: 'portfolio:events_published:rate1m{event_type="request_submitted"}'
+            value: 0.7
+      - expr: portfolio:webhook_latency:p95_5m
+        eval_time: 1m
+        exp_samples:
+          - labels: 'portfolio:webhook_latency:p95_5m'
+            value: 0.91
+  - name: reset counter stays nonnegative
+    interval: 10s
+    input_series:
+      - series: 'http_requests_total{job="procurement-platform",status_code="200"}'
+        values: '0 10 20 0 10 20 30'
+    promql_expr_test:
+      - expr: portfolio:http_requests:rate1m
+        eval_time: 1m
+        exp_samples:
+          - labels: 'portfolio:http_requests:rate1m{job="procurement-platform"}'
+            value: 0.8
+  - name: idle observed service has zero rate and unavailable latency
+    interval: 10s
+    input_series:
+      - series: 'http_requests_total{job="procurement-platform",status_code="200"}'
+        values: '0+0x6'
+    promql_expr_test:
+      - expr: portfolio:http_5xx:rate1m
+        eval_time: 1m
+        exp_samples:
+          - labels: 'portfolio:http_5xx:rate1m{job="procurement-platform"}'
+            value: 0
+      - expr: portfolio:http_latency:p95_5m
+        eval_time: 1m
+        exp_samples: []
+  - name: absent metrics stay absent rather than fabricated zero
+    interval: 10s
+    input_series:
+      - series: 'up{job="integrations-hub",instance="unreachable"}'
+        values: '0+0x6'
+    promql_expr_test:
+      - expr: portfolio:http_requests:rate1m
+        eval_time: 1m
+        exp_samples: []
+      - expr: portfolio:http_5xx:rate1m
+        eval_time: 1m
+        exp_samples: []
+      - expr: 'up{job="integrations-hub"}'
+        eval_time: 1m
+        exp_samples:
+          - labels: 'up{job="integrations-hub",instance="unreachable"}'
+            value: 0

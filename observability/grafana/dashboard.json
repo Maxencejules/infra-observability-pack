@@ -3,7 +3,10 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -21,11 +24,21 @@
     {
       "title": "Request Rate (req/s)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "portfolio-prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -36,7 +49,9 @@
             "pointSize": 5,
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "mode": "none" }
+            "stacking": {
+              "mode": "none"
+            }
           },
           "unit": "reqps"
         },
@@ -44,25 +59,37 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total{job=\"procurement-platform\"}[1m]))",
+          "expr": "portfolio:http_requests:rate1m{job=\"procurement-platform\"}",
           "legendFormat": "procurement-platform",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(http_requests_total{job=\"integrations-hub\"}[1m]))",
+          "expr": "portfolio:http_requests:rate1m{job=\"integrations-hub\"}",
           "legendFormat": "integrations-hub",
           "refId": "B"
         }
-      ]
+      ],
+      "id": 1,
+      "description": "Rate of instrumented HTTP requests. Missing metrics remain unavailable."
     },
     {
       "title": "Error Rate (5xx/s)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "portfolio-prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisLabel": "errors/s",
             "drawStyle": "line",
@@ -74,9 +101,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.1 },
-              { "color": "red", "value": 1 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
             ]
           }
         },
@@ -84,25 +120,37 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total{job=\"procurement-platform\", status_code=~\"5..\"}[1m]))",
-          "legendFormat": "procurement-platform 5xx",
+          "expr": "portfolio:http_5xx:rate1m{job=\"procurement-platform\"}",
+          "legendFormat": "procurement-platform",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(http_requests_total{job=\"integrations-hub\", status_code=~\"5..\"}[1m]))",
-          "legendFormat": "integrations-hub 5xx",
+          "expr": "portfolio:http_5xx:rate1m{job=\"integrations-hub\"}",
+          "legendFormat": "integrations-hub",
           "refId": "B"
         }
-      ]
+      ],
+      "id": 2,
+      "description": "HTTP 5xx per second, zero only when a request counter is present. This does not include HTTP-200 GraphQL errors."
     },
     {
       "title": "Latency p50 / p95 / p99",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "portfolio-prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisLabel": "seconds",
             "drawStyle": "line",
@@ -116,90 +164,96 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"procurement-platform\"}[5m])) by (le))",
-          "legendFormat": "procurement p50",
+          "expr": "portfolio:http_latency:p50_5m{job=\"procurement-platform\"}",
+          "legendFormat": "procurement-platform p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"procurement-platform\"}[5m])) by (le))",
-          "legendFormat": "procurement p95",
+          "expr": "portfolio:http_latency:p95_5m{job=\"procurement-platform\"}",
+          "legendFormat": "procurement-platform p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"procurement-platform\"}[5m])) by (le))",
-          "legendFormat": "procurement p99",
+          "expr": "portfolio:http_latency:p99_5m{job=\"procurement-platform\"}",
+          "legendFormat": "procurement-platform p99",
           "refId": "C"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"integrations-hub\"}[5m])) by (le))",
-          "legendFormat": "integrations p50",
+          "expr": "portfolio:http_latency:p50_5m{job=\"integrations-hub\"}",
+          "legendFormat": "integrations-hub p50",
           "refId": "D"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"integrations-hub\"}[5m])) by (le))",
-          "legendFormat": "integrations p95",
+          "expr": "portfolio:http_latency:p95_5m{job=\"integrations-hub\"}",
+          "legendFormat": "integrations-hub p95",
           "refId": "E"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"integrations-hub\"}[5m])) by (le))",
-          "legendFormat": "integrations p99",
+          "expr": "portfolio:http_latency:p99_5m{job=\"integrations-hub\"}",
+          "legendFormat": "integrations-hub p99",
           "refId": "F"
         }
-      ]
+      ],
+      "id": 3,
+      "description": "Histogram estimates in seconds over five minutes; absent histograms are unavailable. Existing integrations_hub does not expose this HTTP histogram."
     },
     {
-      "title": "Webhook Queue Depth",
+      "title": "Webhook delivery attempts (per second)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "portfolio-prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
-            "axisLabel": "items",
+            "axisLabel": "attempts/s",
             "drawStyle": "line",
             "fillOpacity": 20,
             "lineWidth": 2,
             "showPoints": "never"
           },
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 50 },
-              { "color": "red", "value": 200 }
-            ]
-          }
+          "unit": "reqps"
         },
         "overrides": []
       },
       "targets": [
         {
-          "expr": "webhook_deliveries_total{status=\"pending\", job=\"integrations-hub\"}",
-          "legendFormat": "pending deliveries",
+          "expr": "portfolio:webhook_attempts:rate1m",
+          "legendFormat": "{{status}}",
           "refId": "A"
-        },
-        {
-          "expr": "sum(rate(webhook_deliveries_total{job=\"integrations-hub\"}[5m])) by (status)",
-          "legendFormat": "delivery rate ({{status}})",
-          "refId": "B"
-        },
-        {
-          "expr": "sum(rate(events_published_total{job=\"integrations-hub\"}[5m])) by (event_type)",
-          "legendFormat": "events published ({{event_type}})",
-          "refId": "C"
         }
-      ]
+      ],
+      "id": 4,
+      "description": "Rate of completed attempts by status, including retries. This counter cannot measure queue depth or unique deliveries. The synthetic fixture has no webhook worker."
     },
     {
-      "title": "Webhook Delivery Duration",
+      "title": "Webhook attempt duration p95",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "portfolio-prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisLabel": "seconds",
             "drawStyle": "line",
@@ -213,39 +267,59 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(webhook_delivery_duration_seconds_bucket{job=\"integrations-hub\"}[5m])) by (le))",
-          "legendFormat": "p50",
+          "expr": "portfolio:webhook_latency:p95_5m",
+          "legendFormat": "attempt p95",
           "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(webhook_delivery_duration_seconds_bucket{job=\"integrations-hub\"}[5m])) by (le))",
-          "legendFormat": "p95",
-          "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.99, sum(rate(webhook_delivery_duration_seconds_bucket{job=\"integrations-hub\"}[5m])) by (le))",
-          "legendFormat": "p99",
-          "refId": "C"
         }
-      ]
+      ],
+      "id": 5,
+      "description": "Histogram estimate of an observed attempt's duration in seconds. Missing worker metrics remain unavailable."
     },
     {
-      "title": "Service Health",
+      "title": "Metrics scrape availability",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "portfolio-prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           },
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
           ]
         },
         "overrides": []
@@ -261,27 +335,56 @@
           "legendFormat": "integrations-hub",
           "refId": "B"
         }
+      ],
+      "id": 6,
+      "description": "Prometheus up=1 means the metrics endpoint was scraped successfully; it does not prove database, API or business health."
+    },
+    {
+      "id": 7,
+      "title": "Events accepted (per second)",
+      "description": "Rate of accepted event receipts by event_type. Synthetic fixture receipts are in memory and provide no durability evidence.",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "portfolio-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "portfolio:events_published:rate1m",
+          "legendFormat": "{{event_type}}",
+          "refId": "A"
+        }
       ]
     }
   ],
   "schemaVersion": 39,
-  "tags": ["portfolio", "overview"],
+  "tags": [
+    "portfolio",
+    "overview"
+  ],
   "templating": {
-    "list": [
-      {
-        "current": { "selected": false, "text": "Prometheus", "value": "prometheus" },
-        "hide": 0,
-        "includeAll": false,
-        "name": "DS_PROMETHEUS",
-        "query": "prometheus",
-        "type": "datasource"
-      }
-    ]
+    "list": []
   },
-  "time": { "from": "now-1h", "to": "now" },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "Portfolio Overview",
   "uid": "portfolio-overview",
-  "version": 1
+  "version": 2,
+  "description": "Local telemetry wiring: rates, histogram estimates and scrape availability. Missing measurements are unavailable."
 }

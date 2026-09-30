@@ -1,0 +1,22 @@
+groups:
+  - name: portfolio-observations
+    interval: 10s
+    rules:
+      - record: portfolio:http_requests:rate1m
+        expr: sum by (job) (rate(http_requests_total{job=~"procurement-platform|integrations-hub"}[1m]))
+      - record: portfolio:http_5xx:rate1m
+        expr: >-
+          sum by (job) (rate(http_requests_total{job=~"procurement-platform|integrations-hub",status_code=~"5.."}[1m]))
+          or on (job) (0 * portfolio:http_requests:rate1m)
+      - record: portfolio:http_latency:p50_5m
+        expr: histogram_quantile(0.50, sum by (job, le) (rate(http_request_duration_seconds_bucket{job=~"procurement-platform|integrations-hub"}[5m])))
+      - record: portfolio:http_latency:p95_5m
+        expr: histogram_quantile(0.95, sum by (job, le) (rate(http_request_duration_seconds_bucket{job=~"procurement-platform|integrations-hub"}[5m])))
+      - record: portfolio:http_latency:p99_5m
+        expr: histogram_quantile(0.99, sum by (job, le) (rate(http_request_duration_seconds_bucket{job=~"procurement-platform|integrations-hub"}[5m])))
+      - record: portfolio:webhook_attempts:rate1m
+        expr: sum by (status) (rate(webhook_deliveries_total{job="integrations-hub"}[1m]))
+      - record: portfolio:events_published:rate1m
+        expr: sum by (event_type) (rate(events_published_total{job="integrations-hub"}[1m]))
+      - record: portfolio:webhook_latency:p95_5m
+        expr: histogram_quantile(0.95, sum by (le) (rate(webhook_delivery_duration_seconds_bucket{job="integrations-hub"}[5m])))
